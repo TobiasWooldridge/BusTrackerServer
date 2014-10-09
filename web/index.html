@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <title>Flinders University Loop Bus</title>
+    <style>
+      html, body, #map-canvas {
+        height: 100%;
+        margin: 0px;
+        padding: 0px
+      }
+    </style>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?v=3.exp"></script>
+    <script>
+
+function getColorForSpeed(speed) {
+  // Convert m/s to km/h
+  var mpsToKphConst = 3.6;
+  speed *= 3.6; 
+
+  if (speed < 10) {
+    return '#FF0000';
+  }
+  else if (speed < 35) {
+    return '#FFCC00';
+  }
+  else if (speed < 55) {
+    return '#00AA00';
+  }
+  else {
+    return '#0000FF';
+  }
+}
+
+function initialize() {
+  var mapOptions = {
+    zoom: 17  ,
+    center: new google.maps.LatLng(-35.02689, 138.5750305),
+    mapTypeId: google.maps.MapTypeId.ROADMAP
+  };
+
+  var map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
+
+  $.getJSON("/blips.php", function(data) {
+
+  		for (var i = 1; i < data.length; i++) {
+        var timeStep = data[i].time - data[i -1].time;
+
+        if (timeStep > 10000) {
+          continue;
+        }
+
+        var coordinates = [];
+        coordinates.push(new google.maps.LatLng(data[i - 1].latitude, data[i - 1].longitude));
+        coordinates.push(new google.maps.LatLng(data[i].latitude, data[i].longitude));
+          var path = new google.maps.Polyline({
+            path: coordinates,
+            geodesic: true,
+            strokeColor: getColorForSpeed(data[i].speed),
+            strokeOpacity: 1.0,
+            strokeWeight: 2
+          });
+
+          path.setMap(map);
+  		}
+  });
+
+  $.getJSON("/stops.php", function(stops) {
+	  for (var i = 0; i < stops.length; i++) {
+  		var stop = stops[i];
+
+		var marker = new google.maps.Marker({
+			position: new google.maps.LatLng(stop.latitude, stop.longitude),
+			map: map,
+			title: 'Bus Stop'
+		});
+	  }
+  });
+}
+
+google.maps.event.addDomListener(window, 'load', initialize);
+
+    </script>
+  </head>
+  <body>
+    <div id="map-canvas"></div>
+  </body>
+</html>
