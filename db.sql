@@ -34,4 +34,3 @@ CREATE TABLE stop (
 	name VARCHAR(128) NOT NULL DEFAULT 'Unnamed Stop',
 	note VARCHAR(1024) NOT NULL DEFAULT ''
 );
-

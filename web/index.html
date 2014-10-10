@@ -44,7 +44,6 @@ function initialize() {
   var map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
 
   $.getJSON("/blips.php", function(data) {
-
   		for (var i = 1; i < data.length; i++) {
         var timeStep = data[i].time - data[i -1].time;
 

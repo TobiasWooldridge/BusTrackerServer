@@ -2,13 +2,8 @@
 require_once('db.php');
 
 function loadStops($db, $stops) {
-	$statement = $db->prepare("INSERT INTO stop(location, altitude, bearing) VALUES (ST_MakePoint(:longitude, :latitude), :altitude, :bearing)");
 	foreach ($stops as $stop) {
-		$statement->bindParam(':longitude', $stop['longitude']);
-		$statement->bindParam(':latitude', $stop['latitude']);
-		$statement->bindParam(':altitude', $stop['altitude']);
-		$statement->bindParam(':bearing', $stop['bearing']);
-		$statement->execute();
+		saveStop($db, $stop);
 	}
 }
 
