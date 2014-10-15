@@ -26,6 +26,20 @@ class DB {
 		return $this->selectAsArray($statement);
 	}
 
+	function getBusses() {
+		$statement = $this->db->prepare('
+			SELECT * FROM bus
+			JOIN blip
+			ON bus.id = blip.bus_id
+			WHERE blip.at = (
+						SELECT max(at) FROM blip WHERE blip.bus_id = bus.id
+						LIMIT 1
+					)
+			AND EXTRACT(EPOCH FROM now() - at) < 3600;
+			');
+
+	}
+
 	function getBusWithSecret($id, $secret) {
 		$statement = $this->db->prepare('
 			SELECT id, secret_key, name
@@ -36,6 +50,7 @@ class DB {
 			');
 
 		$statement->bindParam(':id', $id);
+		$statement->bindParam(':secret_key', $secret);
 
 		return $this->selectAsArray($statement);
 	}
@@ -104,4 +119,4 @@ class DB {
 }
 
 
-$db = new DB('pgsql:user=tracker dbname=tracker password=tracker');
+$db = new DB('pgsql:host=localhost user=tracker dbname=tracker password=tracker');
