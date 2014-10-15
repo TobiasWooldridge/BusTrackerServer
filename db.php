@@ -37,7 +37,8 @@ class DB {
 					)
 			AND EXTRACT(EPOCH FROM now() - at) < 3600;
 			');
-
+		
+		return $this->selectAsArray($statement);
 	}
 
 	function getBusWithSecret($id, $secret) {
