@@ -28,16 +28,16 @@ class DB {
 
 	function getBusses() {
 		$statement = $this->db->prepare('
-			SELECT * FROM bus
-			JOIN blip
-			ON bus.id = blip.bus_id
-			WHERE blip.at = (
-						SELECT max(at) FROM blip WHERE blip.bus_id = bus.id
+			SELECT bus.id, bus.name, blip.at as last_blip_at, blip.location, blip.speed, blip.altitude, blip.bearing FROM bus
+			LEFT OUTER JOIN blip
+			ON bus.id = blip.bus_id AND blip.at = (
+						SELECT max(at) FROM blip
+						WHERE blip.bus_id = bus.id
+						AND EXTRACT(EPOCH FROM now() - blip.at) < 3600
 						LIMIT 1
-					)
-			AND EXTRACT(EPOCH FROM now() - at) < 3600;
+					);
 			');
-		
+
 		return $this->selectAsArray($statement);
 	}
 
