@@ -7,6 +7,7 @@ DEFINE('MIN_TAIL_TIME_SEPARATION', 60);
 DEFINE('MAX_DIVERGENCE_METRES', 300);
 DEFINE('BUS_ID', 1);
 DEFINE('TAIL_LENGTH', '5 minutes');
+DEFINE('HEAD_LENGTH', '5 minutes');
 
 function areRoutesSimilar($a, $b) {
 	$i = 0;
@@ -75,8 +76,12 @@ $stops = $db->getStops();
 $analyzedTails = array();
 
 foreach ($nearTails as $tail) {
-	$analyzedTail = array('tail' => $tail, 'first_blip' => $nearTail[0]);
-	$head = $db->loadHead($analyzedTail['first_blip']['bus_id'], $analyzedTail['first_blip']['at']);
+	$analyzedTail = array('tail' => $tail, 'first_blip' => $tail[0]);
+	$head = $db->loadHead($analyzedTail['first_blip']['bus_id'], $analyzedTail['first_blip']['at'], HEAD_LENGTH);
+
+	$analyzedTail['head'] = $head;
+
+	$analyzedTails[] = $analyzedTail;
 }
 
 # Select nearby blips

@@ -71,7 +71,7 @@ class DB {
 			WHERE bus_id = :bus_id
 			AND at > :at::timestamp
 			AND at <= (:at::timestamp + :interval::interval)
-			ORDER BY at DESC; 
+			ORDER BY at ASC; 
 		");
 
 		$statement->bindParam(':bus_id', $bus_id);
