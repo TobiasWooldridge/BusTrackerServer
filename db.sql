@@ -18,6 +18,7 @@ CREATE TABLE bus (
 );
 
 CREATE TABLE blip (
+	id SERIAL,
 	bus_id INTEGER NOT NULL,
 	at TIMESTAMP NOT NULL,
 	location GEOGRAPHY NOT NULL,

@@ -12,6 +12,76 @@ class DB {
 		return $results;
 	}
 
+	function selectNearbyBlips() {
+		$statement = $this->db->prepare('
+			SELECT * FROM blip
+			WHERE ST_DWithin(location, (SELECT location FROM blip ORDER BY id DESC LIMIT 1), 10)
+			ORDER BY at ASC;
+			');
+
+		return $this->selectAsArray($statement);
+	}
+
+	function selectNearbyBlipsAtPlace() {
+		$statement = $this->db->prepare("
+			SELECT * FROM blip
+			WHERE ST_DWithin(location, ST_GeographyFromText('SRID=4326;POINT(138.5700856 -35.023426)'), 50)
+			ORDER BY at ASC;
+			");
+
+		return $this->selectAsArray($statement);
+	}
+
+	function loadTail($bus_id, $at, $interval) {
+		$statement = $this->db->prepare("
+			SELECT
+				bus_id,
+				at,
+				ST_X(location::geometry) as longitude,
+				ST_Y(location::geometry) as latitude,
+				altitude,
+				speed,
+				bearing
+			FROM blip
+			WHERE bus_id = :bus_id
+			AND at > (:at::timestamp - :interval::interval)
+			AND at <= :at::timestamp
+			ORDER BY at DESC; 
+		");
+
+		$statement->bindParam(':bus_id', $bus_id);
+		$statement->bindParam(':at', $at);
+		$statement->bindParam(':interval', $interval);
+
+
+		return $this->selectAsArray($statement);
+	}
+
+	function loadHead($bus_id, $at, $interval) {
+		$statement = $this->db->prepare("
+			SELECT
+				bus_id,
+				at,
+				ST_X(location::geometry) as longitude,
+				ST_Y(location::geometry) as latitude,
+				altitude,
+				speed,
+				bearing
+			FROM blip
+			WHERE bus_id = :bus_id
+			AND at > :at::timestamp
+			AND at <= (:at::timestamp + :interval::interval)
+			ORDER BY at DESC; 
+		");
+
+		$statement->bindParam(':bus_id', $bus_id);
+		$statement->bindParam(':at', $at);
+		$statement->bindParam(':interval', $interval);
+
+
+		return $this->selectAsArray($statement);
+	}
+
 
 	function getBus($id) {
 		$statement = $this->db->prepare('
@@ -58,7 +128,8 @@ class DB {
 
 	function getStops() {
 		$statement = $this->db->prepare("
-			SELECT 	ST_X(location::geometry) as longitude,
+			SELECT 	id,
+				ST_X(location::geometry) as longitude,
 				ST_Y(location::geometry) as latitude,
 				altitude, bearing, name, note
 				FROM stop ORDER BY id DESC
@@ -67,16 +138,22 @@ class DB {
 		return $this->selectAsArray($statement);
 	}
 
-	function getBlips() {
+	function getBlipsFor($ids) {
 		$statement = $this->db->prepare("
 			SELECT 	bus_id,
 				at,
 				ST_X(location::geometry) as longitude,
 				ST_Y(location::geometry) as latitude,
 				altitude,
+				speed,
 				bearing
-				FROM blip ORDER BY at, bus_id DESC
+				FROM blip
+				WHERE bus_id IN (:ids)
+				AND ST_DWithin(location, ST_GeographyFromText('SRID=4326;POINT(138.5680449 -35.0262689)'), 75)
+				ORDER BY at, bus_id DESC
 			");
+
+		$statement->bindParam(':ids', implode(',', $ids));
 
 		return $this->selectAsArray($statement);
 	}

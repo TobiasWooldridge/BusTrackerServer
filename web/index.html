@@ -44,26 +44,23 @@ function initialize() {
   var map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
 
   $.getJSON("/blips.php", function(data) {
-  		for (var i = 1; i < data.length; i++) {
-        var timeStep = data[i].time - data[i -1].time;
+      for (var j = 0; j < data.length; j++) {
+        var tail = data[j];
+        for (var i = 1; i < tail.length; i++) {
+          var coordinates = [];
+          coordinates.push(new google.maps.LatLng(tail[i - 1].latitude, tail[i - 1].longitude));
+          coordinates.push(new google.maps.LatLng(tail[i].latitude, tail[i].longitude));
+            var path = new google.maps.Polyline({
+              path: coordinates,
+              geodesic: true,
+              strokeColor: getColorForSpeed(tail[i].speed),
+              strokeOpacity: 1.0,
+              strokeWeight: 2
+            });
 
-        if (timeStep > 10000) {
-          continue;
-        }
-
-        var coordinates = [];
-        coordinates.push(new google.maps.LatLng(data[i - 1].latitude, data[i - 1].longitude));
-        coordinates.push(new google.maps.LatLng(data[i].latitude, data[i].longitude));
-          var path = new google.maps.Polyline({
-            path: coordinates,
-            geodesic: true,
-            strokeColor: getColorForSpeed(data[i].speed),
-            strokeOpacity: 1.0,
-            strokeWeight: 2
-          });
-
-          path.setMap(map);
-  		}
+            path.setMap(map);
+    		}
+      }
   });
 
   $.getJSON("/stops.php", function(stops) {
@@ -73,7 +70,7 @@ function initialize() {
 		var marker = new google.maps.Marker({
 			position: new google.maps.LatLng(stop.latitude, stop.longitude),
 			map: map,
-			title: 'Bus Stop'
+			title: stop.name + " (" + stop.id + ", " + stop.latitude + ", " + stop.longitude + ")"
 		});
 	  }
   });
