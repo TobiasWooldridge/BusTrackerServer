@@ -24,7 +24,8 @@ CREATE TABLE blip (
 	location GEOGRAPHY NOT NULL,
 	speed DOUBLE PRECISION NOT NULL,
 	altitude DOUBLE PRECISION NOT NULL,
-	bearing DOUBLE PRECISION NOT NULL
+	bearing DOUBLE PRECISION NOT NULL,
+	at_stop INTEGER DEFAULT NULL
 );
 
 CREATE TABLE stop (
@@ -35,3 +36,9 @@ CREATE TABLE stop (
 	name VARCHAR(128) NOT NULL DEFAULT 'Unnamed Stop',
 	note VARCHAR(1024) NOT NULL DEFAULT ''
 );
+
+
+
+
+-- UPDATE blip SET at_stop = (SELECT id FROM stop WHERE ST_DWithin(blip.location, stop.location, 20) LIMIT 1);
+

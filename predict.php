@@ -3,13 +3,12 @@
 require_once('./db.php');
 require_once('./haversine.php');
 
-DEFINE('MIN_TAIL_TIME_SEPARATION', 60);
+DEFINE('MIN_TAIL_TIME_SEPARATION', 600);
 DEFINE('MAX_DIVERGENCE_METRES', 300);
-DEFINE('BUS_ID', 1);
 DEFINE('TAIL_LENGTH', '5 minutes');
-DEFINE('HEAD_LENGTH', '5 minutes');
+DEFINE('HEAD_LENGTH', '30 minutes');
 
-function areRoutesSimilar($a, $b) {
+function testRouteAlignment($a, $b, $maxDivergenceMeters) {
 	$i = 0;
 	$j = 0;
 
@@ -17,11 +16,11 @@ function areRoutesSimilar($a, $b) {
 		$nextIDist = haversine($a[$i + 1], $b[$j]);
 		$nextJDist = haversine($a[$i], $b[$j + 1]);
 
-		if ($nextIDist > MAX_DIVERGENCE_METRES && $nextJDist > MAX_DIVERGENCE_METRES) {
+		if (min($nextIDist, $nextJDist) > $maxDivergenceMeters) {
 			return false;
 		}
 
-		if ($nextIDist < $nextJDist) {
+		if ($nextIDist < $nextJDist) {	
 			$i++;
 		}
 		else {
@@ -32,64 +31,132 @@ function areRoutesSimilar($a, $b) {
 	return true;
 }
 
+function timeOfDayDifference($a, $b) {
+	$aTime = date('i', $a) * 60 + date('s', $a);
+	$bTime = date('i', $b) * 60 + date('s', $b);
 
-$rawTailStarts = $db->selectNearbyBlipsAtPlace();
+	return abs($aTime - $bTime);
+}
 
-$tailStarts = array();
+function weightTimestampSimilarity($a, $b) {
+	$timeOfDayDifference = timeOfDayDifference($a, $b);
 
-$lastTime = 0;
-foreach ($rawTailStarts as $tail) {
-	$blipTime = strtotime($tail['at']);
+	$weight = 0;
 
-	$timeSeparation = $blipTime - $lastTime;
+	// Weight based on similar time of day
+	if ($timeOfDayDifference < 60)
+		$weight += 100;
+	else if ($timeOfDayDifference < 300)
+		$weight += 60;
+	else if ($timeOfDayDifference < 3600)
+		$weight += 40;
 
-	if ($timeSeparation > MIN_TAIL_TIME_SEPARATION) {
-		$tailStarts[] = $tail;
-		$lastTime = $blipTime;
+	// Weight based on weekday
+	if (date('l', $a) == date('l', $b))
+		$weight += 30;
+
+	return $weight;
+}
+
+
+function predictFutureStops($db) {
+	$busId = 1;
+
+	$nearbyBlips = $db->findHistoricalBlipsAtLocationBefore($busId, 138.5723687, -35.0248587, date("Y-m-d H:i:s.u"));
+
+	$tails = [];
+
+	$lastTime = 0;
+	foreach ($nearbyBlips as $blip) {
+		$blipTime = strtotime($blip['at']);
+
+		$timeSeparation = $blipTime - $lastTime;
+
+		if ($timeSeparation > MIN_TAIL_TIME_SEPARATION) {
+			$tails[] = array('nearest_blip' => $blip, 'nearest_time' => $blipTime);
+			$lastTime = $blipTime;
+		}
 	}
-}
 
-
-$tails = [];
-
-foreach ($tailStarts as $tailStart) {
-	$tails[] = $db->loadTail($tailStart['bus_id'], $tailStart['at'], TAIL_LENGTH);
-}
-
-$currentRoute = $tails[0];
-$nearTails = array();
-
-foreach ($tails as $key => $tail) {
-	$nearEnough = areRoutesSimilar($tail, $currentRoute);
-
-	echo "Tail #$key:\t" . ($nearEnough ? "Similar" : "Not similar") . "\n";
-	if ($nearEnough) {
-		$nearTails[] = $tail;
+	if (count($tails) == 0) {
+		throw new Exception("No tails available. It will be impossible to predict routes based on this history.");
 	}
+
+	foreach ($tails as &$tail) {
+		$tail['before'] = $db->loadTail($busId, $tail['nearest_blip']['at'], TAIL_LENGTH);
+	}
+
+	$currentRoute = $tails[0];
+
+
+	// Find a list of tails that are aligned with the current match
+	$alignedTails = array_filter($tails, function($tail) use($currentRoute) {
+		return testRouteAlignment($tail['before'], $currentRoute['before'], MAX_DIVERGENCE_METRES);
+	});
+
+	foreach ($alignedTails as &$tail) {
+		$futureStops = $db->getFutureStops($busId, $tail['nearest_blip']['at'], HEAD_LENGTH);
+
+		foreach ($futureStops as &$futureStop) {
+			$futureStop['seconds_until'] = strtotime($futureStop['at']) - strtotime($tail['nearest_blip']['at']);
+		}
+
+		$tail['future_stops'] = $futureStops;
+	}
+
+	// Simple algorithm to average the predicted times for now (and use those as stop estimates)
+	$stopEstimates = [];
+	foreach ($alignedTails as &$tail) {
+		$weight = weightTimestampSimilarity(strtotime($tail['nearest_blip']['at']), strtotime($currentRoute['nearest_blip']['at']));
+
+		foreach ($tail['future_stops'] as $stop) {
+			if (!array_key_exists($stop['stop_id'], $stopEstimates)) {
+				$stopEstimates[$stop['stop_id']] = array(
+					'id' => $stop['stop_id'],
+					'name' => $stop['stop_name'],
+					'predictions' => []
+				);
+			}
+
+			$stopEstimates[$stop['stop_id']]['predictions'][] = [
+				'time' => $stop['seconds_until'],
+				'weight' => $weight
+			];
+		}
+	}
+
+
+	foreach ($stopEstimates as &$estimate) {
+		$totalWeight = array_reduce($estimate['predictions'], function($carry, $item) {
+			return $carry + $item['weight'];
+		}, 0);
+
+		$estimate['prediction'] = array_reduce($estimate['predictions'], function($carry, $prediction) use($totalWeight) {
+			return $carry + ($prediction['time'] * ($prediction['weight'] / $totalWeight));
+		}, 0);
+	}
+
+	usort($stopEstimates, function($a, $b) {
+		return $a['prediction'] > $b['prediction'];
+	});
+
+	print_r($stopEstimates);
+
+	return $stopEstimates;
 }
 
 
-echo "Analysing " . count($nearTails) . " similar tails\n";
+$predictions = predictFutureStops($db);
 
-$stops = $db->getStops();
-
-$analyzedTails = array();
-
-foreach ($nearTails as $tail) {
-	$analyzedTail = array('tail' => $tail, 'first_blip' => $tail[0]);
-	$head = $db->loadHead($analyzedTail['first_blip']['bus_id'], $analyzedTail['first_blip']['at'], HEAD_LENGTH);
-
-	$analyzedTail['head'] = $head;
-
-	$analyzedTails[] = $analyzedTail;
+foreach ($predictions as $prediction) {
+	echo round($prediction['prediction'], 2) . "s    \t to " . $prediction['name'] . "\n";
 }
 
-# Select nearby blips
-#SELECT id FROM blip WHERE ST_DWithin(location, (SELECT location FROM blip ORDER BY id DESC LIMIT 1), 10);
 
 
-# Select tails
-#SELECT * FROM blip WHERE at > '2014-10-15 14:30:16' AND at < '2014-10-15 14:35:16'; 
+
+
+
 
 
 
