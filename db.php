@@ -1,10 +1,13 @@
 <?php
 
 class DB {
+	const BLIP_NEAREST_TIME_THRESHOLD = '5 minutes';
+
 	function __construct($dsn) {
 		$this->db = new PDO($dsn);
 		$this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	}
+
 
 	private function selectAsArray($statement) {
 		$statement->execute();
@@ -12,33 +15,68 @@ class DB {
 		return $results;
 	}
 
-	function selectNearbyBlips() {
-		$statement = $this->db->prepare('
-			SELECT * FROM blip
-			WHERE bus_id = :bus_id
-			AND ST_DWithin(location, (SELECT location FROM blip ORDER BY id DESC LIMIT 1), 10)
-			ORDER BY at ASC;
-			');
+	// function selectNearbyBlips() {
+	// 	$statement = $this->db->prepare('	
+	// 		SELECT * FROM blip
+	// 		WHERE bus_id = :bus_id
+	// 		AND ST_DWithin(location, (SELECT location FROM blip ORDER BY id DESC LIMIT 1), 10)
+	// 		ORDER BY at ASC;
+	// 		');
 
-		$statement->bindParam(':bus_id', $bus_id);
+	// 	$statement->bindParam(':bus_id', $bus_id);
+
+	// 	return $this->selectAsArray($statement);
+	// }
+	
+	function findBlipNearestTime($busId, $time) {
+		$statement = $this->db->prepare("
+			SELECT
+				bus_id,
+				at,
+				ST_X(location::geometry) as longitude,
+				ST_Y(location::geometry) as latitude,
+				altitude,
+				speed,
+				bearing
+			FROM blip
+			WHERE bus_id = :bus_id
+			AND at > (:time::timestamp - :threshold::interval)
+			AND at < (:time::timestamp + :threshold::interval)
+			ORDER BY abs(extract(epoch FROM (:time::timestamp - at))) ASC
+			LIMIT 1;	
+			");
+	
+		$threshold = self::BLIP_NEAREST_TIME_THRESHOLD;
+
+		$statement->bindParam(':bus_id', $busId);
+		$statement->bindParam(':time', $time);
+		$statement->bindParam(':threshold', $threshold);
 
 		return $this->selectAsArray($statement);
 	}
 
-	function findHistoricalBlipsAtLocationBefore($busId, $longitude, $latitude, $before) {
+	function findHistoricalBlipsAtLocationBefore($busId, $longitude, $latitude, $before, $interval) {
 		$statement = $this->db->prepare("
-			SELECT * FROM blip
+			SELECT
+				bus_id,
+				at,
+				ST_X(location::geometry) as longitude,
+				ST_Y(location::geometry) as latitude,
+				altitude,
+				speed,
+				bearing
+			FROM blip
 			WHERE bus_id = :bus_id
-			AND at < :before::timestamp
+			AND at < :before::timestamp - :interval::interval
 			AND ST_DWithin(location, ST_MakePoint(:longitude, :latitude), 50)
 			ORDER BY at ASC;
 			");
 
-
 		$statement->bindParam(':bus_id', $busId);
+		$statement->bindParam(':before', $before);
+		$statement->bindParam(':interval', $interval);
 		$statement->bindParam(':longitude', $longitude);
 		$statement->bindParam(':latitude', $latitude);
-		$statement->bindParam(':before', $before);
 
 		return $this->selectAsArray($statement);
 	}
