@@ -69,7 +69,7 @@ class DB {
 			WHERE bus_id = :bus_id
 			AND at < :before::timestamp - :interval::interval
 			AND ST_DWithin(location, ST_MakePoint(:longitude, :latitude), 50)
-			ORDER BY at ASC;
+			ORDER BY at DESC;
 			");
 
 		$statement->bindParam(':bus_id', $busId);

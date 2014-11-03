@@ -5,7 +5,7 @@ require_once(__DIR__.'/haversine.php');
 
 DEFINE('MIN_TAIL_TIME_SEPARATION', 600);
 DEFINE('MAX_DIVERGENCE_METRES', 300);
-DEFINE('TAIL_LENGTH', '5 minutes');
+DEFINE('TAIL_LENGTH', '3 minutes');
 DEFINE('HEAD_LENGTH', '30 minutes');
 
 function testRouteAlignment($a, $b, $maxDivergenceMeters) {
@@ -69,7 +69,7 @@ function predictFutureStops(DB $db, $hyperBlip) {
 		$hyperBlip['longitude'],
 		$hyperBlip['latitude'],
 		date('Y-m-d H:i:s.u', strtotime($hyperBlip['at'])),
-		MIN_TAIL_TIME_SEPARATION	
+		'10 minutes'	
 	);
 
 	$tails = [];

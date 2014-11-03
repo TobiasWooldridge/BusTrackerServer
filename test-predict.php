@@ -1,21 +1,47 @@
 <?php
 
-require_once('db.php');
-require_once('predict.php');
+require_once(__DIR__.'/db.php');
+require_once(__DIR__.'/predict.php');
 
-$hyperBlip = $db->findBlipNearestTime(1, '2014-10-15 14:43:07');
+function getPredictionForTime(DB $db, $time, $stopId) {
+	$hyperBlip = $db->findBlipNearestTime(1, $time);
 
-if ($hyperBlip == null) {
-	throw new Exception("Could not find a recent blip, bus may not be running.");
+	if ($hyperBlip == null) {
+		throw new Exception("Could not find a recent blip, bus may not have been running at this time.");
+	}
+
+
+	$predictions = predictFutureStops($db, $hyperBlip[0]);
+
+	foreach ($predictions as $prediction) {
+		if ($prediction['id'] == $stopId) {
+			return round($prediction['prediction']);
+		}
+	}
+
+	return -1;
 }
 
-$startTime = microtime(true) * 1000;
-$predictions = predictFutureStops($db, $hyperBlip[0]);
-$endTime = microtime(true) * 1000;
+$startTime = strtotime('2014-10-15 14:10:42');
 
-echo round($endTime - $startTime, 2) . "ms to generate\n";
+$arrivalPredictionTimeUnix = 0;
 
-foreach ($predictions as $prediction) {
-	echo round($prediction['prediction'], 2) . "s    \t to " . $prediction['name'] . "\n";
+for ($i = 0; $i < 35; $i++) {
+	$time = $startTime + (60 * $i);
+	$predictionSeconds = getPredictionForTime($db, date('Y-m-d H:i:s', $time), 5);
+
+
+	if ($predictionSeconds != -1) {
+		$predictionFooTime = $time + $predictionSeconds;
+
+		if (abs($predictionFooTime - $arrivalPredictionTimeUnix) > 600) {
+			$arrivalPredictionTimeUnix = $predictionFooTime;
+		}
+		else {
+			$arrivalPredictionTimeUnix = ($arrivalPredictionTimeUnix * 0.75 + $predictionFooTime * 0.25);
+		}
+	}
+
+	print date('H:i:s', $time) . "\t". $predictionSeconds . "\t" . round($arrivalPredictionTimeUnix - $time, 2) . "\t\n";
 }
-	
+
