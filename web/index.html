@@ -4,13 +4,9 @@
     <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
     <meta charset="utf-8">
     <title>Flinders University Loop Bus</title>
-    <style>
-      html, body, #map-canvas {
-        height: 100%;
-        margin: 0px;
-        padding: 0px
-      }
-    </style>
+   
+    <link rel="stylesheet" type="text/css" href="styles/styles.css">
+
     <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.js"></script>
     <script src="https://maps.googleapis.com/maps/api/js?v=3.exp"></script>
     <script>
@@ -35,45 +31,133 @@ function getColorForSpeed(speed) {
 }
 
 function initialize() {
+  var styles = [
+    {
+      featureType: "road",
+      elementType: "geometry",
+      stylers: [
+        { visibility: "simplified" }
+      ]
+    },{
+      featureType: "road",
+      elementType: "labels",
+      stylers: [
+        { visibility: "simplified" }
+      ]
+    },{
+      featureType: "poi",
+      elementType: "labels",
+      stylers: [
+        { visibility: "off" }
+      ]
+    }
+  ];
+
+  var styledMap = new google.maps.StyledMapType(styles, { name: "Styled Map" });
+
+
   var mapOptions = {
     zoom: 17  ,
     center: new google.maps.LatLng(-35.02689, 138.5750305),
-    mapTypeId: google.maps.MapTypeId.ROADMAP
+    mapTypeControlOptions: {
+      mapTypeIds: [google.maps.MapTypeId.ROADMAP, 'map_style']
+    },
+    disableDefaultUI: true
   };
 
   var map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
 
-  $.getJSON("/blips.php", function(data) {
-      for (var j = 0; j < data.length; j++) {
-        var tail = data[j];
-        for (var i = 1; i < tail.length; i++) {
-          var coordinates = [];
-          coordinates.push(new google.maps.LatLng(tail[i - 1].latitude, tail[i - 1].longitude));
-          coordinates.push(new google.maps.LatLng(tail[i].latitude, tail[i].longitude));
-            var path = new google.maps.Polyline({
-              path: coordinates,
-              geodesic: true,
-              strokeColor: getColorForSpeed(tail[i].speed),
-              strokeOpacity: 1.0,
-              strokeWeight: 2
-            });
+  //Associate the styled map with the MapTypeId and set it to display.
+  map.mapTypes.set('map_style', styledMap);
+  map.setMapTypeId('map_style');
 
-            path.setMap(map);
-    		}
+  // Show a trail of blips
+  // $.getJSON("/blips.php", function(data) {
+  //     for (var j = 0; j < data.length; j++) {
+  //       var tail = data[j];
+  //       for (var i = 1; i < tail.length; i++) {
+  //         var coordinates = [];
+  //         coordinates.push(new google.maps.LatLng(tail[i - 1].latitude, tail[i - 1].longitude));
+  //         coordinates.push(new google.maps.LatLng(tail[i].latitude, tail[i].longitude));
+  //           var path = new google.maps.Polyline({
+  //             path: coordinates,
+  //             geodesic: true,
+  //             strokeColor: getColorForSpeed(tail[i].speed),
+  //             strokeOpacity: 1.0,
+  //             strokeWeight: 2
+  //           });
+
+  //           path.setMap(map);
+  //   		}
+  //     }
+  // });
+
+  var busMarkers = [];
+
+  function updateBusMarkers() {
+    var icon = 'images/bus.png';
+
+    $.getJSON("/busses.php", function(busses) {
+      // Add new bus markers
+      for (var i = 0; i < busses.length; i++) {
+        var bus = busses[i];
+
+        if (busMarkers[bus.id] == undefined) {
+          busMarkers[bus.id] = new google.maps.Marker({
+            title: bus.name,
+            icon: icon
+          });
+        }
+
+        if (bus.latitude != null) {
+          busMarkers[bus.id].setMap(map);
+          busMarkers[bus.id].setPosition(new google.maps.LatLng(bus.latitude, bus.longitude));
+        }
+        else {
+          busMarkers[bus.id].setMap(null);
+        }
       }
-  });
+    });
+  }
 
-  $.getJSON("/stops.php", function(stops) {
-	  for (var i = 0; i < stops.length; i++) {
-  		var stop = stops[i];
+  function updatePredictions() {
+    $.getJSON("/predictions.php", function(predictions) {
+      var element = document.getElementById("predictions");
+  
+      element.innerHTML = "";
 
-		var marker = new google.maps.Marker({
-			position: new google.maps.LatLng(stop.latitude, stop.longitude),
-			map: map,
-			title: stop.name + " (" + stop.id + ", " + stop.latitude + ", " + stop.longitude + ")"
-		});
-	  }
-  });
+      for (var i = 0; i < predictions.length; i++) {
+        var prediction = predictions[i];
+        element.innerHTML += "<tr><td>" + Math.round(prediction.prediction/60) + " minutes</td><td>" + prediction.name + "</td></tr>";
+      }
+    });
+  }
+
+  function updateStops() {
+    $.getJSON("/stops.php", function(stops) {
+      // Bus stop icon taken from http://www.freepik.com/free-icon/bus-stop-geolocalization_695616.htm
+      // Bus stop icon must be attributed to Freepik if reused
+      var icon = 'images/bus-stop.png';
+
+  	  for (var i = 0; i < stops.length; i++) {
+    		var stop = stops[i];
+
+    		var marker = new google.maps.Marker({
+    			position: new google.maps.LatLng(stop.latitude, stop.longitude),
+    			map: map,
+    			title: stop.name + " (" + stop.id + ", " + stop.latitude + ", " + stop.longitude + ")",
+          icon: icon
+    		});
+  	  }
+    });
+  }
+
+  setInterval(updateBusMarkers, 3000);
+  updateBusMarkers();
+
+  updatePredictions();
+
+  updateStops();
 }
 
 google.maps.event.addDomListener(window, 'load', initialize);
@@ -82,5 +166,12 @@ google.maps.event.addDomListener(window, 'load', initialize);
   </head>
   <body>
     <div id="map-canvas"></div>
+    <div id="map-overlay">
+    <h1>Flinders University Loop Bus Tracker</h1>
+    <p class="warning">This application is a prototype and doesn't currently show the correct loop bus times.</p>
+    <table id="predictions">
+      
+    </table>
+    </div>
   </body>
 </html>

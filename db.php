@@ -146,12 +146,21 @@ class DB {
 
 	function getBusses() {
 		$statement = $this->db->prepare('
-			SELECT bus.id, bus.name, blip.at as last_blip_at, blip.location, blip.speed, blip.altitude, blip.bearing FROM bus
+			SELECT 	bus.id,
+				bus.name,
+				blip.at as last_blip_at,
+				blip.speed,
+				blip.altitude,
+				blip.bearing,
+				ST_X(location::geometry) as longitude,
+				ST_Y(location::geometry) as latitude
+			FROM bus
 			LEFT OUTER JOIN blip
-			ON bus.id = blip.bus_id AND blip.at = (
-						SELECT max(at) FROM blip
+			ON blip.id = (
+						SELECT id FROM blip
 						WHERE blip.bus_id = bus.id
 						AND EXTRACT(EPOCH FROM now() - blip.at) < 3600
+						ORDER BY at DESC
 						LIMIT 1
 					);
 			');
@@ -230,21 +239,22 @@ class DB {
 		$statement->bindParam(':longitude', $long);
 		$statement->bindParam(':latitude', $lat);
 
-		return $this->selectAsArray($statement);
+		return array_shift($this->selectAsArray($statement));
 	}
 
 	function saveBlip($blip) {
 		// Pre-calculate whether this blip is at a stop or not
-		$atStopId = findNearbyStop($blip['longitude'], $blip['latitude']);
+		$atStopId = $this->findAtStopId($blip['longitude'], $blip['latitude']);
 
 		$statement = $this->db->prepare("
-			INSERT INTO blip(bus_id, at, location, speed, altitude, bearing)
+			INSERT INTO blip(bus_id, at, location, speed, altitude, bearing, at_stop)
 			VALUES (:bus_id,
 				to_timestamp(:at),
 				ST_MakePoint(:longitude, :latitude),
 				:speed,
 				:altitude,
-				:bearing)");
+				:bearing,
+				:at_stop)");
 		
 		$at = $blip['time'] / 1000;
 		$statement->bindParam(':bus_id', $blip['bus_id']);
@@ -262,3 +272,4 @@ class DB {
 
 
 $db = new DB('pgsql:host=localhost user=tracker dbname=tracker password=tracker');
+

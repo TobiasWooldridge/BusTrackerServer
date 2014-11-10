@@ -13,3 +13,7 @@ Setup
 The dependencies for this are PHP, pgsql, and the PHP pgsql PDO driver.
 
 Put this in a folder. Make /web web accessible. Configure the DSN string in db.php and initialize your pgsql database with db.sql
+
+Credits
+=======
+Bus/bus stop icon from http://www.freepik.com/free-icon/bus-stop-geolocalization_695616.htm
