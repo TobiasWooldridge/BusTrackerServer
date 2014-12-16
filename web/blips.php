@@ -26,7 +26,7 @@ echo "\n";
 // }
 
 
-// $tails = [];
+// $tails = array();
 
 // foreach ($tailStarts as $tailStart) {
 // 	$tails[] = $db->loadTail($tailStart['bus_id'], $tailStart['at']);
@@ -36,7 +36,7 @@ echo "\n";
 // $currentRoute = $tails[1];
 
 
-// $correctTails = [];
+// $correctTails = array();
 // foreach ($tails as $tail) {
 // 	$i = 0;
 // 	$j = 0;

@@ -72,7 +72,7 @@ function predictFutureStops(DB $db, $hyperBlip) {
 		'10 minutes'	
 	);
 
-	$tails = [];
+	$tails = array();
 
 	$lastTime = 0;
 	foreach ($nearbyBlips as $blip) {
@@ -113,7 +113,7 @@ function predictFutureStops(DB $db, $hyperBlip) {
 	}
 
 	// Simple algorithm to average the predicted times for now (and use those as stop estimates)
-	$stopEstimates = [];
+	$stopEstimates = array();
 	foreach ($alignedTails as &$tail) {
 		$weight = weightTimestampSimilarity(strtotime($tail['nearest_blip']['at']), strtotime($hyperBlip['at']));
 
@@ -122,14 +122,14 @@ function predictFutureStops(DB $db, $hyperBlip) {
 				$stopEstimates[$stop['stop_id']] = array(
 					'id' => $stop['stop_id'],
 					'name' => $stop['stop_name'],
-					'predictions' => []
+					'predictions' => array()
 				);
 			}
 
-			$stopEstimates[$stop['stop_id']]['predictions'][] = [
+			$stopEstimates[$stop['stop_id']]['predictions'][] = array(
 				'time' => $stop['seconds_until'],
 				'weight' => $weight
-			];
+			);
 		}
 	}
 
