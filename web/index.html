@@ -126,9 +126,14 @@ function initialize() {
   
       element.innerHTML = "";
 
-      for (var i = 0; i < predictions.length; i++) {
-        var prediction = predictions[i];
-        element.innerHTML += "<tr><td>" + Math.round(prediction.prediction/60) + " minutes</td><td>" + prediction.name + "</td></tr>";
+      if (predictions.length == 0) {
+        element.innerHTML = "There are no bus predictions currently. The loop bus may not be running right now.";
+      }
+      else {
+        for (var i = 0; i < predictions.length; i++) {
+          var prediction = predictions[i];
+          element.innerHTML += "<tr><td>" + Math.round(prediction.prediction/60) + " minutes</td><td>" + prediction.name + "</td></tr>";
+        }
       }
     });
   }
