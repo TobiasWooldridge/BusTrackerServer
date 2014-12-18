@@ -26,7 +26,6 @@ db.php and initialize your pgsql database with db.sql
 The following instructions assume Ubuntu 12.04 or newer
 
 1. `git clone git@github.com:TobiasWooldridge/BusTrackerServer.git`
-2. Add the following repository to /etc/apt/sources.list `deb http://apt.postgresql.org/pub/repos/apt/ precise-pgdg main`
 2. `sudo apt-get update`
 2. Install postgresql
 	`sudo apt-get install postgresql-9.1`
