@@ -59,14 +59,17 @@ class DB {
                 SELECT
 				bus_id, at, longitude, latitude, altitude, speed, bearing
 				FROM blip
-                WHERE latitude BETWEEN :minLat AND :maxLat AND longitude BETWEEN :minLon AND :maxLon
+                WHERE bus_id = :bus_id
+					AND at < :before::timestamp - :interval::interval
+					AND latitude BETWEEN :minLat AND :maxLat AND longitude BETWEEN :minLon AND :maxLon
+					LIMIT 1000
             ) AS FirstCut
 
 			WHERE bus_id = :bus_id
 			AND at < :before::timestamp - :interval::interval
-			WHERE LBT_Distance(longitude, latitude, :longitude, :latitude) < :radius
+			AND LBT_Distance(longitude, latitude, :longitude, :latitude) < :radius
 			ORDER BY at DESC
-			LIMIT 1000;
+			LIMIT 500;
 			");
 
 		$statement->bindParam(':bus_id', $busId);
@@ -162,7 +165,7 @@ class DB {
 
 	function getBusses() {
 		$statement = $this->db->prepare('
-			SELECT 	bus.id,
+			SELECT bus.id,
 				bus.name,
 				blip.at as last_blip_at,
 				blip.speed,
@@ -255,8 +258,8 @@ class DB {
 			INSERT INTO blip(bus_id, at, longitude, latitude, speed, altitude, bearing, at_stop)
 			VALUES (:bus_id,
 				to_timestamp(:at),
-				:latitude,
 				:longitude,
+				:latitude,
 				:speed,
 				:altitude,
 				:bearing,

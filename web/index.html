@@ -109,7 +109,7 @@ function initialize() {
           });
         }
 
-        if (bus.latitude != null) {
+        if (bus.latitude !== null) {
           busMarkers[bus.id].setMap(map);
           busMarkers[bus.id].setPosition(new google.maps.LatLng(bus.latitude, bus.longitude));
         }
