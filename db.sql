@@ -42,7 +42,7 @@ CREATE TABLE stop (
 CREATE INDEX bus_id ON bus (id);
 
 CREATE INDEX blip_id ON blip (id);
-CREATE INDEX blip_time ON blip (at) DESC;
+CREATE INDEX blip_time ON blip (at DESC);
 CREATE INDEX blip_location ON blip (longitude, latitude);
 CREATE INDEX blip_location_reversed ON blip (latitude, longitude);
 
