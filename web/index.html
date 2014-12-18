@@ -14,7 +14,7 @@
 function getColorForSpeed(speed) {
   // Convert m/s to km/h
   var mpsToKphConst = 3.6;
-  speed *= 3.6; 
+  speed *= mpsToKphConst; 
 
   if (speed < 10) {
     return '#FF0000';
