@@ -126,7 +126,7 @@ function initialize() {
   
       element.innerHTML = "";
 
-      if (predictions.length == 0) {
+      if (!predictions || predictions.length == 0) {
         element.innerHTML = "There are no bus predictions currently. The loop bus may not be running right now.";
       }
       else {
