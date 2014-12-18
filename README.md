@@ -29,14 +29,13 @@ The following instructions assume Ubuntu 12.04 or newer
 2. Add the following repository to /etc/apt/sources.list `deb http://apt.postgresql.org/pub/repos/apt/ precise-pgdg main`
 2. `sudo apt-get update`
 2. Install postgresql
-	`sudo apt-get install postgresql-9.1 postgresql-9.1-postgis-2.1 postgresql-9.1-postgis-2.1-scripts`
+	`sudo apt-get install postgresql-9.1`
 3. Create and configure your postgresql database
 	`sudo su postgres`
   1. `psql`
   	1. `CREATE USER tracker WITH PASSWORD 'tracker';`
   	2. `CREATE DATABASE tracker WITH OWNER tracker;`
   	3. `\connect tracker`
-  	4. `CREATE EXTENSION postgis;`
 4. cd BusTrackerServer
 5. `cat db.sql | psql -U tracker -h localhost`
 6. `sudo apt-get install php5-cli php5-common php5-fpm php5-pgsql nginx`

@@ -8,33 +8,19 @@ class DB {
 		$this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	}
 
-
 	private function selectAsArray($statement) {
 		$statement->execute();
 		$results = $statement->fetchAll(PDO::FETCH_ASSOC);
 		return $results;
 	}
 
-	// function selectNearbyBlips() {
-	// 	$statement = $this->db->prepare('	
-	// 		SELECT * FROM blip
-	// 		WHERE bus_id = :bus_id
-	// 		AND ST_DWithin(location, (SELECT location FROM blip ORDER BY id DESC LIMIT 1), 10)
-	// 		ORDER BY at ASC;
-	// 		');
-
-	// 	$statement->bindParam(':bus_id', $bus_id);
-
-	// 	return $this->selectAsArray($statement);
-	// }
-	
 	function findBlipNearestTime($busId, $time) {
 		$statement = $this->db->prepare("
 			SELECT
 				bus_id,
 				at,
-				ST_X(location::geometry) as longitude,
-				ST_Y(location::geometry) as latitude,
+				longitude,
+				latitude,
 				altitude,
 				speed,
 				bearing
@@ -43,7 +29,7 @@ class DB {
 			AND at > (:time::timestamp - :threshold::interval)
 			AND at < (:time::timestamp + :threshold::interval)
 			ORDER BY abs(extract(epoch FROM (:time::timestamp - at))) ASC
-			LIMIT 1;	
+			LIMIT 1;
 			");
 	
 		$threshold = self::BLIP_NEAREST_TIME_THRESHOLD;
@@ -56,20 +42,31 @@ class DB {
 	}
 
 	function findHistoricalBlipsAtLocationBefore($busId, $longitude, $latitude, $before, $interval) {
+	    $R = 6371;  // earth's mean radius, km
+	    $radius = 50; // limit the radius to consider points at this "location", in meters
+
+	    // first-cut bounding box (in degrees)
+	    $maxLat = $latitude + rad2deg($radius/$R);
+	    $minLat = $latitude - rad2deg($radius/$R);
+	    // compensate for degrees longitude getting smaller with increasing latitude
+	    $maxLon = $longitude + rad2deg($radius/$R/cos(deg2rad($latitude)));
+	    $minLon = $longitude - rad2deg($radius/$R/cos(deg2rad($latitude)));
+
 		$statement = $this->db->prepare("
 			SELECT
-				bus_id,
-				at,
-				ST_X(location::geometry) as longitude,
-				ST_Y(location::geometry) as latitude,
-				altitude,
-				speed,
-				bearing
-			FROM blip
+				bus_id, at, longitude, latitude, altitude, speed, bearing
+			FROM (
+                SELECT
+				bus_id, at, longitude, latitude, altitude, speed, bearing
+				FROM blip
+                WHERE latitude BETWEEN :minLat AND :maxLat AND longitude BETWEEN :minLon AND :maxLon
+            ) AS FirstCut
+
 			WHERE bus_id = :bus_id
 			AND at < :before::timestamp - :interval::interval
-			AND ST_DWithin(location, ST_MakePoint(:longitude, :latitude), 50)
-			ORDER BY at DESC;
+			WHERE LBT_Distance(longitude, latitude, :longitude, :latitude) < :radius
+			ORDER BY at DESC
+			LIMIT 1000;
 			");
 
 		$statement->bindParam(':bus_id', $busId);
@@ -77,8 +74,27 @@ class DB {
 		$statement->bindParam(':interval', $interval);
 		$statement->bindParam(':longitude', $longitude);
 		$statement->bindParam(':latitude', $latitude);
+		$statement->bindParam(':radius', $radius);
+
+		$statement->bindParam(':minLat', $minLat);
+		$statement->bindParam(':minLon', $minLon);
+		$statement->bindParam(':maxLat', $maxLat);
+		$statement->bindParam(':maxLon', $maxLon);
 
 		return $this->selectAsArray($statement);
+	}
+
+	function findAtStopId($long, $lat) {
+		$statement = $this->db->prepare('
+			SELECT id FROM stop
+			WHERE LBT_Distance(longitude, latitude, :longitude, :latitude) < 20
+			LIMIT 1;
+			');
+
+		$statement->bindParam(':longitude', $long);
+		$statement->bindParam(':latitude', $lat);
+
+		return array_shift($this->selectAsArray($statement));
 	}
 
 	function loadTail($bus_id, $at, $interval) {
@@ -86,8 +102,8 @@ class DB {
 			SELECT
 				bus_id,
 				at,
-				ST_X(location::geometry) as longitude,
-				ST_Y(location::geometry) as latitude,
+				longitude,
+				latitude,
 				altitude,
 				speed,
 				bearing
@@ -95,7 +111,7 @@ class DB {
 			WHERE bus_id = :bus_id
 			AND at > (:at::timestamp - :interval::interval)
 			AND at <= :at::timestamp
-			ORDER BY at DESC; 
+			ORDER BY at DESC;
 		");
 
 		$statement->bindParam(':bus_id', $bus_id);
@@ -152,8 +168,8 @@ class DB {
 				blip.speed,
 				blip.altitude,
 				blip.bearing,
-				ST_X(location::geometry) as longitude,
-				ST_Y(location::geometry) as latitude
+				longitude,
+				latitude
 			FROM bus
 			LEFT OUTER JOIN blip
 			ON blip.id = (
@@ -186,8 +202,8 @@ class DB {
 	function getStops() {
 		$statement = $this->db->prepare("
 			SELECT 	id,
-				ST_X(location::geometry) as longitude,
-				ST_Y(location::geometry) as latitude,
+				longitude,
+				latitude,
 				altitude, bearing, name, note
 				FROM stop ORDER BY id DESC
 			");
@@ -199,8 +215,8 @@ class DB {
 		$statement = $this->db->prepare("
 			SELECT 	bus_id,
 				at,
-				ST_X(location::geometry) as longitude,
-				ST_Y(location::geometry) as latitude,
+				longitude,
+				latitude,
 				altitude,
 				speed,
 				bearing
@@ -216,8 +232,10 @@ class DB {
 
 	function saveStop($stop) {
 		$statement = $this->db->prepare("
-			INSERT INTO stop(location, altitude, bearing)
-			VALUES (ST_MakePoint(:longitude, :latitude),
+			INSERT INTO stop(longitude, latitude, altitude, bearing)
+			VALUES (
+				:longitude,
+				:latitude,
 				:altitude,
 				:bearing)");
 		
@@ -229,28 +247,16 @@ class DB {
 		$statement->execute();
 	}
 
-	function findAtStopId($long, $lat) {
-		$statement = $this->db->prepare('
-			SELECT id FROM stop
-			WHERE ST_DWithin(location, ST_MakePoint(:longitude, :latitude), 20)
-			LIMIT 1;
-			');
-
-		$statement->bindParam(':longitude', $long);
-		$statement->bindParam(':latitude', $lat);
-
-		return array_shift($this->selectAsArray($statement));
-	}
-
 	function saveBlip($blip) {
 		// Pre-calculate whether this blip is at a stop or not
 		$atStopId = $this->findAtStopId($blip['longitude'], $blip['latitude']);
 
 		$statement = $this->db->prepare("
-			INSERT INTO blip(bus_id, at, location, speed, altitude, bearing, at_stop)
+			INSERT INTO blip(bus_id, at, longitude, latitude, speed, altitude, bearing, at_stop)
 			VALUES (:bus_id,
 				to_timestamp(:at),
-				ST_MakePoint(:longitude, :latitude),
+				:latitude,
+				:longitude,
 				:speed,
 				:altitude,
 				:bearing,

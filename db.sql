@@ -1,9 +1,11 @@
--- Enable Topology
-CREATE EXTENSION postgis_topology;
--- fuzzy matching needed for Tiger
-CREATE EXTENSION fuzzystrmatch;
--- Enable US Tiger Geocoder
-CREATE EXTENSION postgis_tiger_geocoder;
+-- http://www.movable-type.co.uk/scripts/latlong-db.html
+-- Maths taken from above page. Licenced under cc-attribution. Originally by Chris Veness
+CREATE OR REPLACE FUNCTION
+	-- LBT_Distance(lon lat lon lat)
+	-- Returns result in meters
+	LBT_Distance(DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION) RETURNS DOUBLE PRECISION
+	AS $$ SELECT acos(sin(radians($2))*sin(radians($4)) + cos(radians($2))*cos(radians($4))*cos(radians($3 - $1))) * 6371000.0; $$
+	LANGUAGE SQL;
 
 DROP TABLE blip;
 DROP TABLE stop;
@@ -19,7 +21,8 @@ CREATE TABLE blip (
 	id SERIAL,
 	bus_id INTEGER NOT NULL,
 	at TIMESTAMP NOT NULL,
-	location GEOGRAPHY NOT NULL,
+	longitude DOUBLE PRECISION NOT NULL,
+	latitude DOUBLE PRECISION NOT NULL,
 	speed DOUBLE PRECISION NOT NULL,
 	altitude DOUBLE PRECISION NOT NULL,
 	bearing DOUBLE PRECISION NOT NULL,
@@ -28,15 +31,22 @@ CREATE TABLE blip (
 
 CREATE TABLE stop (
 	id SERIAL,
-	location GEOGRAPHY NOT NULL,
+	longitude DOUBLE PRECISION NOT NULL,
+	latitude DOUBLE PRECISION NOT NULL,
 	altitude DOUBLE PRECISION NOT NULL,
 	bearing DOUBLE PRECISION NOT NULL,
 	name VARCHAR(128) NOT NULL DEFAULT 'Unnamed Stop',
 	note VARCHAR(1024) NOT NULL DEFAULT ''
 );
 
+CREATE INDEX bus_id ON bus (id);
 
+CREATE INDEX blip_id ON blip (id);
+CREATE INDEX blip_time ON blip (at) DESC;
+CREATE INDEX blip_location ON blip (longitude, latitude);
+CREATE INDEX blip_location_reversed ON blip (latitude, longitude);
 
-
--- UPDATE blip SET at_stop = (SELECT id FROM stop WHERE ST_DWithin(blip.location, stop.location, 20) LIMIT 1);
+CREATE INDEX stop_id ON blip (id);
+CREATE INDEX stop_location ON blip (longitude, latitude);
+CREATE INDEX stop_location_reversed ON blip (latitude, longitude);
 
